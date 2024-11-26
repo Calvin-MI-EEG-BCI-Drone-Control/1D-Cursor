@@ -117,7 +117,7 @@ def record_testing_data(data_stream, training_length, record_type="time"):
 
 # first run: .288 mse, .712 acc
 
-training_time_length = 30
+training_time_length = 60
 
 print("Preparing Data Stream...")
 stream = DataStream()
@@ -178,9 +178,9 @@ try:
 
         """ 3.1 ACQUIRE DATA """
         # Obtain EEG data from the LSL stream
-        shift_length = epoch_length - overlap
-        new_eeg_sample = record_testing_data(stream, epoch_size, "number")
-
+        shift_length = epoch_size - overlap
+        new_eeg_sample = record_testing_data(stream, shift_length, "number")
+        new_eeg_sample = np.array(new_eeg_sample)
         # Only keep the channel we're interested in
         # ch_data = np.array(eeg_data)[:, index_channel]
 
@@ -195,21 +195,26 @@ try:
         #                                 epoch_size)
 
         #TESTING
-        data_epoch = np.array(new_eeg_sample)
+        # print(f"old: {eeg_buffer.shape} and new: {new_eeg_sample.shape}")
+        eeg_buffer = append_to_buffer(eeg_buffer, new_eeg_sample)
+        data_epoch = eeg_buffer
 
         # Compute features
         feat_vector = compute_feature_vector(data_epoch, epoch_size)
         y_hat = test_classifier(classifier,
                                         feat_vector.reshape(1, -1), mu_ft,
                                         std_ft)
-        print(f"prediction: {y_hat}")
+        # print(f"prediction: {y_hat}")
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print("LEFT HAND" if y_hat == 0 else "RIGHT HAND")
 
-        decision_buffer, _ = update_buffer(decision_buffer,
-                                                np.reshape(y_hat, (-1, 1)))
+        # buffer for visualizations
+        # decision_buffer, _ = update_buffer(decision_buffer,
+        #                                         np.reshape(y_hat, (-1, 1)))
 
-        """ 3.3 VISUALIZE THE DECISIONS """
-        plotter_decision.update_plot(decision_buffer)
-        plt.pause(0.00001)
+        # """ 3.3 VISUALIZE THE DECISIONS """
+        # plotter_decision.update_plot(decision_buffer)
+        # plt.pause(0.00001)
 
     
         # alternative:

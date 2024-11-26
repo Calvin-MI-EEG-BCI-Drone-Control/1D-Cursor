@@ -221,3 +221,10 @@ def get_last_data(data_buffer, newest_samples):
     new_buffer = data_buffer[(data_buffer.shape[0] - newest_samples):, :]
 
     return new_buffer
+
+def append_to_buffer(data_buffer, new_data):
+    new_buffer = np.vstack((data_buffer, new_data))
+    # keep only the last <epoch_size> samples
+    new_buffer = new_buffer[-int(data_buffer.shape[0]):, :]
+
+    return new_buffer
