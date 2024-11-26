@@ -1,0 +1,7 @@
+# output files #
+*.csv
+
+# compiled source #
+*.exe
+
+__pycache__
