@@ -4,6 +4,8 @@ from DataPlotter import *
 import time
 import os
 
+# much of this code is directly from or based on https://github.com/jdpigeon/bci-workshop
+
 def record_data_by_time(data_stream, training_length):
         '''
         Record data based on a certain amount of time.
@@ -115,7 +117,7 @@ def record_testing_data(data_stream, training_length, record_type="time"):
 
 # first run: .288 mse, .712 acc
 
-training_time_length = 20
+training_time_length = 30
 
 print("Preparing Data Stream...")
 stream = DataStream()
@@ -141,7 +143,7 @@ smallest_sample = min(len(lh_raw), len(rh_raw))
 if (smallest_sample) < epoch_size:
     epoch_size = smallest_sample
     print(f"WARNING: epoch_size < nominal sampling rate of {NOMINAL_SAMPLING_RATE}")    # may cause an actual error, so not exactly a "warning"
-overlap = .8 * epoch_size # .8 * sampling_rate
+overlap = .8 * NOMINAL_SAMPLING_RATE # .8 * sampling_rate
 lh_epochs = epoch(lh_raw, epoch_size, overlap)
 rh_epochs = epoch(rh_raw, epoch_size, overlap)
 print(lh_epochs.shape)
@@ -161,7 +163,7 @@ print()
             lh_feat_matrix, rh_feat_matrix)
 
 # Initialize the buffers for storing raw EEG and decisions
-eeg_buffer = np.zeros((int(NOMINAL_SAMPLING_RATE * training_time_length), stream.num_channels))
+eeg_buffer = np.zeros((int(epoch_size), stream.num_channels))
 filter_state = None  # for use with the notch filter
 decision_buffer = np.zeros((30, 1))
 
@@ -177,27 +179,30 @@ try:
         """ 3.1 ACQUIRE DATA """
         # Obtain EEG data from the LSL stream
         shift_length = epoch_length - overlap
-        new_eeg_sample = record_testing_data(stream, shift_length * NOMINAL_SAMPLING_RATE, "number")
+        new_eeg_sample = record_testing_data(stream, epoch_size, "number")
 
         # Only keep the channel we're interested in
         # ch_data = np.array(eeg_data)[:, index_channel]
 
         # Update EEG buffer
-        eeg_buffer, filter_state = update_buffer(
-                eeg_buffer, np.array(new_eeg_sample), notch=True,
-                filter_state=filter_state)
+        # eeg_buffer, filter_state = update_buffer(
+        #         eeg_buffer, np.array(new_eeg_sample), notch=True,
+        #         filter_state=filter_state)
 
-        """ 3.2 COMPUTE FEATURES AND CLASSIFY """
+        # """ 3.2 COMPUTE FEATURES AND CLASSIFY """
         # Get newest samples from the buffer
-        data_epoch = get_last_data(eeg_buffer,
-                                        epoch_size)
+        # data_epoch = get_last_data(eeg_buffer,
+        #                                 epoch_size)
+
+        #TESTING
+        data_epoch = np.array(new_eeg_sample)
 
         # Compute features
         feat_vector = compute_feature_vector(data_epoch, epoch_size)
         y_hat = test_classifier(classifier,
                                         feat_vector.reshape(1, -1), mu_ft,
                                         std_ft)
-        print(y_hat)
+        print(f"prediction: {y_hat}")
 
         decision_buffer, _ = update_buffer(decision_buffer,
                                                 np.reshape(y_hat, (-1, 1)))
@@ -206,6 +211,41 @@ try:
         plotter_decision.update_plot(decision_buffer)
         plt.pause(0.00001)
 
+    
+        # alternative:
+        #  """ 3.1 ACQUIRE DATA """
+        # # Obtain EEG data from the LSL stream
+        # shift_length = epoch_length - overlap
+        # new_eeg_sample = record_testing_data(stream, shift_length * NOMINAL_SAMPLING_RATE, "number")
+
+        # # Only keep the channel we're interested in
+        # # ch_data = np.array(eeg_data)[:, index_channel]
+
+        # # Update EEG buffer
+        # eeg_buffer, filter_state = update_buffer(
+        #         eeg_buffer, np.array(new_eeg_sample), notch=True,
+        #         filter_state=filter_state)
+        # # eeg_buffer, filter_state = update_buffer(eeg_buffer, np.array(new_eeg_sample))
+
+
+        # """ 3.2 COMPUTE FEATURES AND CLASSIFY """
+        # # Get newest <epoch_size> samples from the buffer
+        # data_epoch = get_last_data(eeg_buffer,
+        #                                 epoch_size)
+
+        # # Compute features
+        # feat_vector = compute_feature_vector(np.array(new_eeg_sample), NOMINAL_SAMPLING_RATE)
+        # y_hat = test_classifier(classifier,
+        #                                 feat_vector.reshape(1, -1), mu_ft,
+        #                                 std_ft)
+        # print(f"prediction: {y_hat}")
+
+        # decision_buffer, _ = update_buffer(decision_buffer,
+        #                                         np.reshape(y_hat, (-1, 1)))
+
+        # """ 3.3 VISUALIZE THE DECISIONS """
+        # plotter_decision.update_plot(decision_buffer)
+        # plt.pause(0.00001)
 except KeyboardInterrupt:
 
     print('Closed!')

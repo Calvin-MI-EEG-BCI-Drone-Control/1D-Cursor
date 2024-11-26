@@ -108,7 +108,11 @@ def compute_feature_vector(eegdata, fs):
 
     feature_vector = np.concatenate((meanDelta, meanTheta, meanAlpha,
                                      meanBeta), axis=0)
-    feature_vector = np.concatenate((meanAlpha, meanBeta), axis=0) # a test with just alpha/beta
+    # feature_vector = np.concatenate((meanAlpha, meanBeta), axis=0) # a test with just alpha/beta
+
+    # replace 0s and negative numbers with a very small positive value
+        # due to "divide by zero encountered in log10" errors
+    feature_vector[feature_vector <= 0] = 1e-10
 
     feature_vector = np.log10(feature_vector)
 
