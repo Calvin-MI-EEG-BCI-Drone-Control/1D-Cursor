@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<head>
+    <title>Drone Control BCI</title>
+    <link rel="stylesheet" href="index.css">
+</head>
+
+<body>
+    <header>Drone Control Brain Computer Interface</header>
+    <section id="vision-section">
+        <h1>Vision Statement</h1>
+        <p>
+            My project involves the creation of a brain-computer interface that allows a user to control a drone using motor imagery (imagined body movements). 
+            Although the specific task of controlling a drone using neural signals may not seem practical, this way of interfacing with technology is very significant. 
+            For individuals that cannot interact with technology in a typical manner (because, for example, they are paralyzed or have limited mobility), 
+            a brain-computer interface acts as a new, accessible method for controlling computers since it does not depend on the user’s physical abilities. 
+            With this advantage of brain-computer interfaces in mind, I have chosen to utilize motor imagery rather than physical movement to control the drone – 
+            so that it could be used by anyone regardless of their motor abilities.
+        </p>
+        <p>
+            The core of my solution is a machine learning model that infers drone controls based on the user’s brain activity. 
+            I am recording neural signals from an electroencephalography (EEG) cap and have created a pipeline for processing that data so that it can be used as input for the model. 
+            The outputs of the model will be commands for how the drone should move. 
+        </p>
+        <p>
+            From the user’s point of view, they will be imagining themselves moving a certain part of their body in order to execute a command on the drone 
+            (for example, I could imagine moving my right arm and that could cause the drone to move to the right). This is a control method that has been used for many related works.
+            Other ways of using motor imagery to control the drone will be considered throughout the remainder of this project. 
+            Using machine learning, I will be able to classify brain activity as matching certain imagined movements.
+        </p>
+    </section>
+    <section id="resources-section">
+        <h1>Resources</h1>
+        <a href="https://computing.calvin.edu/" target="_blank">Calvin University Department of Computer Science</a>
+        <a href="https://github.com/Calvin-MI-EEG-BCI-Drone-Control/1D-Cursor/" target="_blank">GitHub Repository</a>
+        <a href="https://docs.google.com/document/d/1q6WwbYCgN3HJQ3gnD0JNYKtLNGTpvgnq5EYWMc8lXNo/edit?usp=sharing" target="_blank">Full Project Proposal</a>
+        <a href="https://docs.google.com/presentation/d/1mDakqdJtG6h_IjadoX5ThqXLMLntaRrQ7885lDqSf6g/edit?usp=sharing" target="_blank">Status Report Presentation</a>
+    </section>
+    <section id="contributors-section">
+        <h1>Contributors</h1>
+        <div>
+            <h2>Steven McKelvey</h2>
+            <p>
+                A computer science major and psychology minor with an interest in brain-computer interfacing.
+                Proposed the idea of creating a BCI for a senior project and is the student leading the 
+                development of this system.
+            </p>
+        </div>
+        <div>
+            <h2>Dr. Kenneth Arnold</h2>
+            <p>
+                Professor of computer science and data science at Calvin University with an interest in 
+                artificial intelligence, language models, and human-computer interaction. He is the computer science
+                advisor for this project, assisting with any AI and programming related tasks.
+            </p>
+        </div>
+        <div>
+            <h2>Dr. Paul Moes</h2>
+            <p>
+                Professor of psychology at Calvin University with an interest in neuroscience, particularly the
+                corpus callosum and its role in the integration of activity in the left and right cerebral hemispheres.
+                He has served as an advisor in this project by providing EEG equipment/software along with insights into
+                working with neural signals and experimental design for determining how a user should interact with our system.
+            </p>
+        </div>
+    </section>
+</body>
+
+</html>
