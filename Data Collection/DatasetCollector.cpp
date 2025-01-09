@@ -137,9 +137,9 @@ int collectData(sqlite3 *db, int num_channels_recorded, float speed) {
 
 	function storeData = [&]() {
 		string query = "";
-		if (CONFIG_FILE == "../iWorxSettings/IX-EEG-Impedance-Check.iwxset") {
-			// Add data to the database for each sample collected
-			for (int j = 0; j < num_samples_per_ch; ++j) {
+		// Add data to the database for each sample collected
+		for (int j = 0; j < num_samples_per_ch; ++j) {
+			if (CONFIG_FILE == "../iWorxSettings/IX-EEG-Impedance-Check.iwxset") {
 				query = "INSERT INTO ImpMotorImagery VALUES(";
 				// build a query for each sample, using data from each channel within the sample
 				for (int k = 0; k < num_channels_recorded; ++k) {
@@ -150,14 +150,15 @@ int collectData(sqlite3 *db, int num_channels_recorded, float speed) {
 				}
 				// add the class and time to the data
 				query += string(dataClass) + "," + asctime(gmtime(&record_time)) + ");";
+				// DEBUGGING: print out the built query
+				cout << query << endl;
 			}
-			// DEBUGGING: print out the built query
-			cout << query << endl;
+
+			// add this datapoint to the SQLite database
+			char *ErrMsg;
+			int retCode = sqlite3_exec(db, query.c_str(), SQLcallback, 0, &ErrMsg);
+			handleSQLErrors(retCode, ErrMsg);
 		}
-		
-		char *ErrMsg;
-		int retCode = sqlite3_exec(db, query.c_str(), SQLcallback, 0, &ErrMsg);
-		handleSQLErrors(retCode, ErrMsg);
 	};
 
 	/* Make sure we are not getting junk data.
