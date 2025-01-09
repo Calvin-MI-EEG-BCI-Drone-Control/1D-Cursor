@@ -6,12 +6,16 @@
 #include <algorithm>
 #include <vector>
 #include "../iWorxDAQ_64/iwxDAQ.h"
-// #include <sqlite3.h>
+#include <sqlite3.h>
 #include <windows.h>
 
 using namespace std;
 
-// g++ DatasetCollector.cpp -o DataCollector -I../iWorxDAQ_64 -L../iWorxDAQ_64 -liwxDAQ -I$env:VCPKG_ROOT/installed/x64-windows/include -L$env:VCPKG_ROOT/installed/x64-windows/lib -lsqlite3
+// g++ DatasetCollector.cpp -o DatasetCollector -I../iWorxDAQ_64 -L../iWorxDAQ_64 -liwxDAQ -I$env:VCPKG_ROOT/installed/x64-windows/include -L$env:VCPKG_ROOT/installed/x64-windows/lib -lsqlite3
+
+/** USAGE
+ * ./DatasetCollector <database>
+ */
 
 class Trial {
 public:
@@ -21,9 +25,23 @@ public:
 
 	// constructors
 	Trial() : name(""), trial(0), time(0) {};
-	Trial(char* task, unsigned trial, float time)
+	Trial(char* name, unsigned trial, float time)
 		: name(name), trial(trial), time(time) {};
 };
+
+/**
+ * A callback for whenever an SQL query (sqlite3_exec()) returns values
+ * @param argc: the number of values returned
+ * @param argv: an array of the values returned
+ * @param azColName: the name of the column each value in argv was returned from
+ */
+static int SQLcallback(void *NotUsed, int argc, char **argv, char **azColName){
+    int i;
+    for(i=0; i<argc; i++){
+    //   printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+    return 0;
+}
 
 int displayInterface() {
 	// opportunity to show information, ask for demographics info, etc.
@@ -53,29 +71,32 @@ int startHardware(char* logfile) {
  * @param { FILE* } fout: the name of the (existing) output file
  * @param { int } num_channels_recorded: the number of channels to record from -- gotten from GetCurrentSamplingInfo()
  * @param { float } speed: the sampling speed -- gotten from GetCurrentSamplingInfo()
- * @param { char* } task: the name of the task being performed by the subject
- * @param { int } trialNum: the trial number for this task
+ * @param { char* } trial: the name of the trial being recorded
+ * @param { int } trialNum: the trial number for this trial
  * @param { float } time: duration of this trial (in seconds)
  *
  */
-int runTrial(int num_channels_recorded, float speed, bool SAVE_TO_FILE, char* task, unsigned trialNum, float duration) {
-	// RECORD DATA
-	// Constants
+int runTrial(int num_channels_recorded, float speed, char* trial, float duration) {
+	// VARIABLES AND CONSTANTS //
+	// constants
 	const int DATA_SIZE = 2000; // maximum datapoints to collect per call to ReadDataFromDevice()
 	const int RECORD_ITERATIONS = (duration * 1000) / speed; // number of seconds (in milliseconds) / sampling rate (in milliseconds)
+	
 	// variables for ReadDataFromDevice
 	int num_samples_per_ch = 0;
 	long trig_index = -1;
 	char trig_string[256];
 	float data[DATA_SIZE];
+
 	// used to time when data is read from the device.
 	time_t record_time; 
 	int read_num = 0;
 
+
 	/// READ DATA ///
 
-	// Make sure we are not getting junk data. 
-	// There is a delay between when the device is started and when meaningful data is recorded.
+	// Make sure we are not getting junk data.
+	// There is a delay between when the (iWorx) device is started and when meaningful data is recorded.
 	int iRet = ReadDataFromDevice(&num_samples_per_ch, &trig_index, trig_string, 256, data, DATA_SIZE);
 	unsigned total_datapoints = num_channels_recorded * num_samples_per_ch;
 	// if the array is full of 0s, wait for data.
@@ -95,7 +116,7 @@ int runTrial(int num_channels_recorded, float speed, bool SAVE_TO_FILE, char* ta
 		if (num_samples_per_ch * num_channels_recorded > DATA_SIZE) printf("\nWARNING: amount of data recorded by ReadDataFromDevice() exceeds size of \"data\" buffer\n");
 		// catch errors
 		if (num_samples_per_ch < 0) {
-			fprintf(stderr, "\nERROR: Invalid number of samples per channel (trial %u)\n", trialNum);
+			fprintf(stderr, "\nERROR: Invalid number of samples per channel (trial %s)\n", trial);
 			return 1;
 		}
 
@@ -112,8 +133,6 @@ int runTrial(int num_channels_recorded, float speed, bool SAVE_TO_FILE, char* ta
 					// if (SAVE_TO_FILE) fprintf(fout, "%f,", data[index]); // write to file
 				}
 			}
-			// MQTT
-			// publishData(client, pubmsg, sample_array, num_channels_recorded); 
 			// Write to file
 			// if (SAVE_TO_FILE) 
 			// {
@@ -126,17 +145,18 @@ int runTrial(int num_channels_recorded, float speed, bool SAVE_TO_FILE, char* ta
 	}
 
 	// summarize results
-	// printf("\nTrial %u of %s: %d samples aquired per channel (total of %d) over %f seconds\n", trialNum, task, num_samples_per_ch * RECORD_ITERATIONS, num_samples_per_ch * num_channels_recorded * RECORD_ITERATIONS, time);
+	// printf("\nTrial %s: %d samples aquired per channel (total of %d) over %f seconds\n", trial, num_samples_per_ch * RECORD_ITERATIONS, num_samples_per_ch * num_channels_recorded * RECORD_ITERATIONS, time);
 
 	return 0;
 }
 
-int runDemo(char* LOG_FILE, char* OUTPUT_FILE, char* FILE_MODE, char* CONFIG_FILE, bool SAVE_TO_FILE, Trial* trialArray, unsigned trialArrayLength) {
+int startRecording(char* LOG_FILE, char* CONFIG_FILE) {
+	// SETUP RECORDING
+
 	//displayInterface();
 
 	startHardware(LOG_FILE);
 
-	// SETUP DEMO
 	int iRet = LoadConfiguration(CONFIG_FILE); // Load a settings file that has been created with LabScribe
 	if (iRet != 0) {
 		perror("\nERROR: Failure to load configuration");
@@ -158,16 +178,17 @@ int runDemo(char* LOG_FILE, char* OUTPUT_FILE, char* FILE_MODE, char* CONFIG_FIL
 	}
 
 	// TRIALS
-	for (int i = 0; i < trialArrayLength; ++i) {
-		iRet = runTrial(num_channels_recorded, speed, SAVE_TO_FILE, trialArray[i].name, trialArray[i].trial, trialArray[i].time);
-	}
+	// TODO: listen for trial events infinitely
+	// for (int i = 0; i < trialArrayLength; ++i) {
+		// iRet = runTrial(num_channels_recorded, speed, trialArray[i].name, trialArray[i].time);
+	// }
+	// TEMP TESTING: record a single trial for 10 seconds
+	iRet = runTrial(num_channels_recorded, speed, "testTrial", 10);
 
 
 	// Stop Acquisition
 	StopAcq();
 	printf("\nAquisition Stopped");
-	// Close the file
-	// fclose(fout);
 
 	// Close the iWorx Device
 	CloseIworxDevice();
@@ -176,21 +197,49 @@ int runDemo(char* LOG_FILE, char* OUTPUT_FILE, char* FILE_MODE, char* CONFIG_FIL
 
 int _tmain(int argc, char **argv)
 {
-	// sqlite3 *db;
 	// constants for file names
 	char* LOG_FILE = "iworx.log";
-	char* OUTPUT_FILE = "output_file.csv";
-	char* FILE_MODE = "w";
-	char* CONFIG_FILE = "IX-EEG-Impedance-Check.iwxset";
-	bool SAVE_TO_FILE = true;
+	char* CONFIG_FILE = "../iWorxSettings/IX-EEG-Impedance-Check.iwxset";
 
-	// Array of trials
-	const unsigned TRIAL_ARRAY_LENGTH = 1;
-	Trial trials[TRIAL_ARRAY_LENGTH];
-	// trial/condition name, trial number, recording length (time) 
-	trials[0] = Trial("demo", 0, 10);
-
-	runDemo(LOG_FILE, OUTPUT_FILE, FILE_MODE, CONFIG_FILE, SAVE_TO_FILE, trials, TRIAL_ARRAY_LENGTH);
+	// set up SQLite database
+	sqlite3 *db;
+	char *ErrMsg = 0;
+	if( sqlite3_open(argv[1], &db) ){
+      fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+      sqlite3_close(db);
+      return(1);
+    }
 	
+	// table to contain all values from the impedence check settings (IX-EEG-Impedance-Check.iwxset)
+	/* NOTE: 
+		The iworx documentation does not describe which values received from ReadDataFromDevice() 
+		correspond to each lead on the EEG cap. The column labels in the database may not be accurate.
+		They are educated guesses based on the information shown in LabScribe.
+
+		The data from ReadDataFromDevice() has a shape of (19,). 18 electrodes, one ground.
+		TODO: Verify this with the settings groups/files https://iworx.com/docs/labscribe/create-your-own-settings-file-and-settings-group/?v=0b3b97fa6688
+	
+		The last values (class and time):
+		class: the class this datapoint belongs to
+		time: the wall clock time when this data was recorded (when ReadDataFromDevice() was called) 
+	*/
+	char *impedenceTable = "";
+	if (CONFIG_FILE == "../iWorxSettings/IX-EEG-Impedance-Check.iwxset") {
+		impedenceTable = 
+		"CREATE TABLE IF NOT EXISTS ImpMotorImagery ("
+		"id INTEGER PRIMARY KEY, "
+		"FP1 REAL, FP2 REAL, F7 REAL, F3 REAL, Fz REAL, F4 REAL, F8 REAL, "
+		"T3 REAL, C3 REAL, Cz REAL, C4 REAL, T4 REAL, T5 REAL, "
+		"P3 REAL, Pz REAL, P4 REAL, T6 REAL, O1 REAL, O2 REAL"
+		"Ground REAL, "
+		"class TEXT, time TEXT)";
+	}
+	// create a table if needed
+	sqlite3_exec(db, impedenceTable, SQLcallback, 0, &ErrMsg);
+
+	startRecording(LOG_FILE, CONFIG_FILE);
+	
+	sqlite3_close(db);
+
 	return 0;
 }

@@ -1,7 +1,3 @@
-// iWorxDAQConsoleDemo.cpp : Defines the entry point for the console application.
-//
-
-// #include "stdafx.h"
 #include <stdio.h>
 #include <tchar.h>
 #include <stdlib.h>
@@ -11,8 +7,7 @@
 #include <MQTTClient.h>
 #include <windows.h>
 
-// g++ -I./iWorxDAQ_64 DataCollector.cpp -o DataCollector -L./iWorxDAQ_64 -liwxDAQ
-// g++ -I./iWorxDAQ_64 DataCollector.cpp -o DataCollector -L./iWorxDAQ_64 -liwxDAQ -I"C:\Users\smcke\Downloads\Software\vcpkg\packages\paho-mqtt_x64-windows\include" -L"C:\Users\smcke\Downloads\Software\vcpkg\packages\paho-mqtt_x64-windows\lib" -lpaho-mqtt3cs
+// g++ DataCollector.cpp -o DataCollector -I./iWorxDAQ_64  -L./iWorxDAQ_64 -liwxDAQ -I"$env:VCPKG_ROOT/installed/x64-windows/include" -L"$env:VCPKG_ROOT/installed/x64-windows/lib" -lpaho-mqtt3cs
 
 // MQTT Constants
 #define ADDRESS     "ssl://3d0ef2c001394874af7fdfa932b5e994.s1.eu.hivemq.cloud:8883"
@@ -311,7 +306,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	char* LOG_FILE = "iworx.log";
 	char* OUTPUT_FILE = "output_file.csv";
 	char* FILE_MODE = "w";
-	char* CONFIG_FILE = "IX-EEG-Impedance-Check.iwxset";
+	char* CONFIG_FILE = "iWorxSettings/IX-EEG-Impedance-Check.iwxset";
 	bool SAVE_TO_FILE = true;
 
 	// Array of trials
