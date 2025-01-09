@@ -1,15 +1,21 @@
 #include <stdio.h>
 #include <tchar.h>
 #include <stdlib.h>
-#include <string.h>
+#include <string>
+#include <iostream>
 #include <time.h>
 #include <algorithm>
 #include <vector>
+#include <functional>
 #include "../iWorxDAQ_64/iwxDAQ.h"
 #include <sqlite3.h>
 #include <windows.h>
 
 using namespace std;
+
+// constants for file names
+#define LOG_FILE "iworx.log"
+#define CONFIG_FILE "../iWorxSettings/IX-EEG-Impedance-Check.iwxset"
 
 // g++ DatasetCollector.cpp -o DatasetCollector -I../iWorxDAQ_64 -L../iWorxDAQ_64 -liwxDAQ -I$env:VCPKG_ROOT/installed/x64-windows/include -L$env:VCPKG_ROOT/installed/x64-windows/lib -lsqlite3
 
@@ -36,11 +42,18 @@ public:
  * @param azColName: the name of the column each value in argv was returned from
  */
 static int SQLcallback(void *NotUsed, int argc, char **argv, char **azColName){
-    int i;
-    for(i=0; i<argc; i++){
+    // int i;
+    // for(i=0; i<argc; i++){
     //   printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
-    }
+    // }
     return 0;
+}
+
+static int handleSQLErrors(int returnCode, char *ErrorMessage) {
+	if( returnCode!=SQLITE_OK ){
+      fprintf(stderr, "SQL error: %s\n", ErrorMessage);
+      sqlite3_free(ErrorMessage);
+    }
 }
 
 int displayInterface() {
@@ -76,13 +89,12 @@ int startHardware(char* logfile) {
  * @param { float } time: duration of this trial (in seconds)
  *
  */
-int runTrial(int num_channels_recorded, float speed, char* trial, float duration) {
+int collectData(sqlite3 *db, int num_channels_recorded, float speed) {
 	// VARIABLES AND CONSTANTS //
 	// constants
 	const int DATA_SIZE = 2000; // maximum datapoints to collect per call to ReadDataFromDevice()
-	const int RECORD_ITERATIONS = (duration * 1000) / speed; // number of seconds (in milliseconds) / sampling rate (in milliseconds)
 	
-	// variables for ReadDataFromDevice
+	// variables for ReadDataFromDevice()
 	int num_samples_per_ch = 0;
 	long trig_index = -1;
 	char trig_string[256];
@@ -92,65 +104,82 @@ int runTrial(int num_channels_recorded, float speed, char* trial, float duration
 	time_t record_time; 
 	int read_num = 0;
 
+	// the type of data currently being recorded
+	char *dataClass = "NA"; 
+
+	int iRet; // return code
+	unsigned total_datapoints; // total datapoints read by ReadDataFromDevice()
+
 
 	/// READ DATA ///
-
-	// Make sure we are not getting junk data.
-	// There is a delay between when the (iWorx) device is started and when meaningful data is recorded.
-	int iRet = ReadDataFromDevice(&num_samples_per_ch, &trig_index, trig_string, 256, data, DATA_SIZE);
-	unsigned total_datapoints = num_channels_recorded * num_samples_per_ch;
-	// if the array is full of 0s, wait for data.
-	while (std::all_of(data, data + total_datapoints, [](int x) { return x == 0; })) {
-		// read more samples
-		Sleep(speed);
-		iRet = ReadDataFromDevice(&num_samples_per_ch, &trig_index, trig_string, 256, data, DATA_SIZE);
-		total_datapoints = num_channels_recorded * num_samples_per_ch;
-	}
-
-	// main loop
-	while (true) {
-		// Sleep(speed); 		// NOTE: no samples are recorded for the first iteration (iter 0) unless there is a Sleep(). The status of ReadDataFromDevice returns -3.
+	/** 
+	 * A function for calling ReadDataFromDevice() and related operations
+	 * 
+	 * @returns (by reference) 
+	 * 
+	 * - The datapoints gotten from ReadDataFromDevice 
+	 * 
+	 * - The time when it was recorded 
+	 * 
+	 * - The number of calls to ReadDataFromDevice that have been done so far (read_num)
+	 */ 
+	function readData = [&]() {
 		iRet = ReadDataFromDevice(&num_samples_per_ch, &trig_index, trig_string, 256, data, DATA_SIZE);
 		record_time = time(NULL);
 		read_num++;
 		if (num_samples_per_ch * num_channels_recorded > DATA_SIZE) printf("\nWARNING: amount of data recorded by ReadDataFromDevice() exceeds size of \"data\" buffer\n");
 		// catch errors
 		if (num_samples_per_ch < 0) {
-			fprintf(stderr, "\nERROR: Invalid number of samples per channel (trial %s)\n", trial);
-			return 1;
+			fprintf(stderr, "\nERROR: Invalid number of samples per channel");
+			exit(1);
 		}
+	};
 
-		// save data to publish array
-		vector<float> sample_array(num_channels_recorded);
-		// for each sample within the recently read data
-		for (int j = 0; j < num_samples_per_ch; ++j) {
-			// for each channel within the sample
-			for (int k = 0; k < num_channels_recorded; ++k) {
-				unsigned index = j * num_channels_recorded + k;
-				if (index < DATA_SIZE) {
-					data[index]; // the data that should be saved -- a sample
-					// sample_array[k] = data[index]; // prepare data for MQTT stream
-					// if (SAVE_TO_FILE) fprintf(fout, "%f,", data[index]); // write to file
+	function storeData = [&]() {
+		string query = "";
+		if (CONFIG_FILE == "../iWorxSettings/IX-EEG-Impedance-Check.iwxset") {
+			// Add data to the database for each sample collected
+			for (int j = 0; j < num_samples_per_ch; ++j) {
+				query = "INSERT INTO ImpMotorImagery VALUES(";
+				// build a query for each sample, using data from each channel within the sample
+				for (int k = 0; k < num_channels_recorded; ++k) {
+					unsigned index = j * num_channels_recorded + k;
+					if (index < DATA_SIZE) {
+						query += to_string(data[index]) + ","; 
+					}
 				}
+				// add the class and time to the data
+				query += string(dataClass) + "," + asctime(gmtime(&record_time)) + ");";
 			}
-			// Write to file
-			// if (SAVE_TO_FILE) 
-			// {
-			// 	// metadata
-			// 	fprintf(fout, "%s,%u,%d,%s", task, trialNum, read_num, asctime(gmtime(&record_time)));
-			// 	fflush(fout);
-			// }
+			// DEBUGGING: print out the built query
+			cout << query << endl;
 		}
-		// Sleep(speed); // was 100 by default, now set to sampling speed
-	}
+		
+		char *ErrMsg;
+		int retCode = sqlite3_exec(db, query.c_str(), SQLcallback, 0, &ErrMsg);
+		handleSQLErrors(retCode, ErrMsg);
+	};
 
-	// summarize results
-	// printf("\nTrial %s: %d samples aquired per channel (total of %d) over %f seconds\n", trial, num_samples_per_ch * RECORD_ITERATIONS, num_samples_per_ch * num_channels_recorded * RECORD_ITERATIONS, time);
+	/* Make sure we are not getting junk data.
+		There is a delay between when the (iWorx) device is started and when meaningful data is recorded.
+		If the array is full of 0s, wait for data. */
+	do {
+		// Sleep(speed);
+		readData();
+		total_datapoints = num_channels_recorded * num_samples_per_ch;
+	} while(std::all_of(data, data + total_datapoints, [](int x) { return x == 0; }));
+
+	// main loop
+	while (true) {
+		// Sleep(speed); 		// NOTE: no samples are recorded for the first iteration (iter 0) unless there is a Sleep(). The status of ReadDataFromDevice returns -3.
+		readData();
+		storeData();
+	}
 
 	return 0;
 }
 
-int startRecording(char* LOG_FILE, char* CONFIG_FILE) {
+int startRecording(sqlite3 *db) {
 	// SETUP RECORDING
 
 	//displayInterface();
@@ -177,13 +206,14 @@ int startRecording(char* LOG_FILE, char* CONFIG_FILE) {
 		return 1;
 	}
 
+	iRet = collectData(db, num_channels_recorded, speed);
+
 	// TRIALS
 	// TODO: listen for trial events infinitely
 	// for (int i = 0; i < trialArrayLength; ++i) {
 		// iRet = runTrial(num_channels_recorded, speed, trialArray[i].name, trialArray[i].time);
 	// }
 	// TEMP TESTING: record a single trial for 10 seconds
-	iRet = runTrial(num_channels_recorded, speed, "testTrial", 10);
 
 
 	// Stop Acquisition
@@ -197,10 +227,6 @@ int startRecording(char* LOG_FILE, char* CONFIG_FILE) {
 
 int _tmain(int argc, char **argv)
 {
-	// constants for file names
-	char* LOG_FILE = "iworx.log";
-	char* CONFIG_FILE = "../iWorxSettings/IX-EEG-Impedance-Check.iwxset";
-
 	// set up SQLite database
 	sqlite3 *db;
 	char *ErrMsg = 0;
@@ -235,9 +261,10 @@ int _tmain(int argc, char **argv)
 		"class TEXT, time TEXT)";
 	}
 	// create a table if needed
-	sqlite3_exec(db, impedenceTable, SQLcallback, 0, &ErrMsg);
+	int retCode = sqlite3_exec(db, impedenceTable, SQLcallback, 0, &ErrMsg);
+	handleSQLErrors(retCode, ErrMsg);
 
-	startRecording(LOG_FILE, CONFIG_FILE);
+	startRecording(db);
 	
 	sqlite3_close(db);
 
