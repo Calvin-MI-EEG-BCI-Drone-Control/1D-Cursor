@@ -1,3 +1,4 @@
+#include "ExperimentGUI.h"
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
@@ -7,10 +8,10 @@
 
 // NOTE: remember to include glfw3.dll in this directory!
 
-int main() {
+void startExperimentGUI() {
     // Initialize GLFW and ImGui
     glfwInit();
-    GLFWwindow* window = glfwCreateWindow(800, 600, "ImGui Example", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(800, 600, "Experiment Example", NULL, NULL);
     glfwMakeContextCurrent(window);
     ImGui::CreateContext();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
@@ -52,5 +53,9 @@ int main() {
     ImGui::DestroyContext();
     glfwDestroyWindow(window);
     glfwTerminate();
-    return 0;
 }
+
+// int main() {
+//     startExperimentGUI();
+//     return 0;
+// }
