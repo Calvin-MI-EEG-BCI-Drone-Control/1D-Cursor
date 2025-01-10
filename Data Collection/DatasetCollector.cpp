@@ -3,11 +3,13 @@
 #include <stdlib.h>
 #include <string>
 #include <iostream>
+
 #include <time.h>
 #include <algorithm>
-#include <vector>
 #include <functional>
+
 #include "../iWorxDAQ_64/iwxDAQ.h"
+#include "ExperimentGUI.cpp"
 #include <sqlite3.h>
 #include <windows.h>
 
@@ -17,23 +19,15 @@ using namespace std;
 #define LOG_FILE "iworx.log"
 #define CONFIG_FILE "../iWorxSettings/IX-EEG-Impedance-Check.iwxset"
 
-// g++ DatasetCollector.cpp -o DatasetCollector -I../iWorxDAQ_64 -L../iWorxDAQ_64 -liwxDAQ -I$env:VCPKG_ROOT/installed/x64-windows/include -L$env:VCPKG_ROOT/installed/x64-windows/lib -lsqlite3
+// compilation with iworx and sqlite
+// g++ DatasetCollector.cpp -o DatasetCollector -I"../iWorxDAQ_64" -L"../iWorxDAQ_64" -liwxDAQ -I"$env:VCPKG_ROOT/installed/x64-windows/include" -L"$env:VCPKG_ROOT/installed/x64-windows/lib" -lsqlite3
+
+// compilation with iworx, sqlite, and imgui
+// g++ DatasetCollector.cpp imgui.cpp imgui_draw.cpp imgui_tables.cpp imgui_widgets.cpp imgui_impl_win32.cpp imgui_impl_dx12.cpp -o DatasetCollector -I"../iWorxDAQ_64" -L"../iWorxDAQ_64" -liwxDAQ -I"$env:VCPKG_ROOT/installed/x64-windows/include" -L"$env:VCPKG_ROOT/installed/x64-windows/lib" -lsqlite3 -I. -ld3d12 -ldxgi -ld3dcompiler -luser32 -lgdi32 -ldwmapi
 
 /** USAGE
  * ./DatasetCollector <database>
  */
-
-class Trial {
-public:
-	char* name;
-	unsigned trial;
-	float time;
-
-	// constructors
-	Trial() : name(""), trial(0), time(0) {};
-	Trial(char* name, unsigned trial, float time)
-		: name(name), trial(trial), time(time) {};
-};
 
 /**
  * A callback for whenever an SQL query (sqlite3_exec()) returns values
@@ -54,10 +48,6 @@ static int handleSQLErrors(int returnCode, char *ErrorMessage) {
       fprintf(stderr, "SQL error: %s\n", ErrorMessage);
       sqlite3_free(ErrorMessage);
     }
-}
-
-int displayInterface() {
-	// opportunity to show information, ask for demographics info, etc.
 	return 0;
 }
 
@@ -105,7 +95,7 @@ int collectData(sqlite3 *db, int num_channels_recorded, float speed) {
 	int read_num = 0;
 
 	// the type of data currently being recorded
-	char *dataClass = "NA"; 
+	string dataClass = "NA"; 
 
 	int iRet; // return code
 	unsigned total_datapoints; // total datapoints read by ReadDataFromDevice()
@@ -149,7 +139,7 @@ int collectData(sqlite3 *db, int num_channels_recorded, float speed) {
 					}
 				}
 				// add the class and time to the data
-				query += string(dataClass) + "," + asctime(gmtime(&record_time)) + ");";
+				query += dataClass + "," + asctime(gmtime(&record_time)) + ");";
 				// DEBUGGING: print out the built query
 				cout << query << endl;
 			}
@@ -228,46 +218,48 @@ int startRecording(sqlite3 *db) {
 
 int _tmain(int argc, char **argv)
 {
-	// set up SQLite database
-	sqlite3 *db;
-	char *ErrMsg = 0;
-	if( sqlite3_open(argv[1], &db) ){
-      fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-      sqlite3_close(db);
-      return(1);
-    }
-	
-	// table to contain all values from the impedence check settings (IX-EEG-Impedance-Check.iwxset)
-	/* NOTE: 
-		The iworx documentation does not describe which values received from ReadDataFromDevice() 
-		correspond to each lead on the EEG cap. The column labels in the database may not be accurate.
-		They are educated guesses based on the information shown in LabScribe.
+	startExperimentGUI(argc, argv);
 
-		The data from ReadDataFromDevice() has a shape of (19,). 18 electrodes, one ground.
-		TODO: Verify this with the settings groups/files https://iworx.com/docs/labscribe/create-your-own-settings-file-and-settings-group/?v=0b3b97fa6688
+	// // set up SQLite database
+	// sqlite3 *db;
+	// char *ErrMsg = 0;
+	// if( sqlite3_open(argv[1], &db) ){
+    //   fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+    //   sqlite3_close(db);
+    //   return(1);
+    // }
 	
-		The last values (class and time):
-		class: the class this datapoint belongs to
-		time: the wall clock time when this data was recorded (when ReadDataFromDevice() was called) 
-	*/
-	char *impedenceTable = "";
-	if (CONFIG_FILE == "../iWorxSettings/IX-EEG-Impedance-Check.iwxset") {
-		impedenceTable = 
-		"CREATE TABLE IF NOT EXISTS ImpMotorImagery ("
-		"id INTEGER PRIMARY KEY, "
-		"FP1 REAL, FP2 REAL, F7 REAL, F3 REAL, Fz REAL, F4 REAL, F8 REAL, "
-		"T3 REAL, C3 REAL, Cz REAL, C4 REAL, T4 REAL, T5 REAL, "
-		"P3 REAL, Pz REAL, P4 REAL, T6 REAL, O1 REAL, O2 REAL"
-		"Ground REAL, "
-		"class TEXT, time TEXT)";
-	}
-	// create a table if needed
-	int retCode = sqlite3_exec(db, impedenceTable, SQLcallback, 0, &ErrMsg);
-	handleSQLErrors(retCode, ErrMsg);
+	// // table to contain all values from the impedence check settings (IX-EEG-Impedance-Check.iwxset)
+	// /* NOTE: 
+	// 	The iworx documentation does not describe which values received from ReadDataFromDevice() 
+	// 	correspond to each lead on the EEG cap. The column labels in the database may not be accurate.
+	// 	They are educated guesses based on the information shown in LabScribe.
 
-	startRecording(db);
+	// 	The data from ReadDataFromDevice() has a shape of (19,). 18 electrodes, one ground.
+	// 	TODO: Verify this with the settings groups/files https://iworx.com/docs/labscribe/create-your-own-settings-file-and-settings-group/?v=0b3b97fa6688
 	
-	sqlite3_close(db);
+	// 	The last values (class and time):
+	// 	class: the class this datapoint belongs to
+	// 	time: the wall clock time when this data was recorded (when ReadDataFromDevice() was called) 
+	// */
+	// char *impedenceTable = "";
+	// if (CONFIG_FILE == "../iWorxSettings/IX-EEG-Impedance-Check.iwxset") {
+	// 	impedenceTable = 
+	// 	"CREATE TABLE IF NOT EXISTS ImpMotorImagery ("
+	// 	"id INTEGER PRIMARY KEY, "
+	// 	"FP1 REAL, FP2 REAL, F7 REAL, F3 REAL, Fz REAL, F4 REAL, F8 REAL, "
+	// 	"T3 REAL, C3 REAL, Cz REAL, C4 REAL, T4 REAL, T5 REAL, "
+	// 	"P3 REAL, Pz REAL, P4 REAL, T6 REAL, O1 REAL, O2 REAL"
+	// 	"Ground REAL, "
+	// 	"class TEXT, time TEXT)";
+	// }
+	// // create a table if needed
+	// int retCode = sqlite3_exec(db, impedenceTable, SQLcallback, 0, &ErrMsg);
+	// handleSQLErrors(retCode, ErrMsg);
+
+	// startRecording(db);
+	
+	// sqlite3_close(db);
 
 	return 0;
 }
