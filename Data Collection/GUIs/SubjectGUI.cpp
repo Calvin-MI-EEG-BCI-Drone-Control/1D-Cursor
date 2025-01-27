@@ -2,16 +2,22 @@
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
-#include <GLFW/glfw3.h>
 
 // g++ SubjectGUI.cpp imgui/imgui.cpp imgui/imgui_draw.cpp imgui/imgui_tables.cpp imgui/imgui_widgets.cpp imgui/imgui_impl_glfw.cpp imgui/imgui_impl_opengl3.cpp -o SubjectGUI -I. -L. -I"$env:VCPKG_ROOT/installed/x64-windows/include" -L"$env:VCPKG_ROOT/installed/x64-windows/lib" -lglfw3 -lopengl32
 
 void startSubjectGUI() {
+    if (!glfwInit()) {
+        // std::cerr << "Failed to initialize GLFW\n";
+        // return -1;
+    }
+    GLFWwindow* window = glfwCreateWindow(800, 600, "Subject Example", nullptr, nullptr);
+
     // Initialize GLFW and ImGui
-    glfwInit();
-    GLFWwindow* window = glfwCreateWindow(800, 600, "Subject Example", NULL, NULL);
     glfwMakeContextCurrent(window);
+
     ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 130");
 

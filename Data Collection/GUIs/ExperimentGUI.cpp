@@ -2,18 +2,16 @@
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
-#include <GLFW/glfw3.h>
 
 // g++ ExperimentGUI.cpp imgui/imgui.cpp imgui/imgui_draw.cpp imgui/imgui_tables.cpp imgui/imgui_widgets.cpp imgui/imgui_impl_glfw.cpp imgui/imgui_impl_opengl3.cpp -o ExperimentGUI -I. -L. -I"$env:VCPKG_ROOT/installed/x64-windows/include" -L"$env:VCPKG_ROOT/installed/x64-windows/lib" -lglfw3 -lopengl32
 
-// NOTE: remember to include glfw3.dll in this directory!
-
-void startExperimentGUI() {
+void startExperimentGUI(GLFWwindow* window) {
     // Initialize GLFW and ImGui
-    glfwInit();
-    GLFWwindow* window = glfwCreateWindow(800, 600, "Experiment Example", NULL, NULL);
     glfwMakeContextCurrent(window);
+
     ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 130");
 
@@ -52,7 +50,6 @@ void startExperimentGUI() {
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
     glfwDestroyWindow(window);
-    glfwTerminate();
 }
 
 // int main() {

@@ -1,6 +1,8 @@
 #ifndef EXPERIMENT_GUI_H
 #define EXPERIMENT_GUI_H
 
-extern void startExperimentGUI();
+#include <GLFW/glfw3.h>
+
+extern void startExperimentGUI(GLFWwindow* window);
 
 #endif
